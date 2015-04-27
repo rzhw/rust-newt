@@ -1,0 +1,4 @@
+[package]
+name = "newt"
+version = "0.0.0"
+authors = ["Richard Wang <zhwang@live.com.au>"]
