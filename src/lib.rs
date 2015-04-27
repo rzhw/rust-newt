@@ -2,11 +2,11 @@ use std::ffi::CString;
 use std::ffi::CStr;
 use std::ptr;
 
-pub type NewtComponentPtr = u32;
+pub type ComponentPtr = u32;
 
-pub trait Component {
-    fn get_ptr(&self) -> NewtComponentPtr;
-}
+// Design goal: Be a light wrapper. Side effects (inherent to UI programming) are okay.
+// (An alternative wrapper which attempts to make this functional is possible but detracts
+// from the simplicity of newt.)
 
 #[link(name = "newt")]
 extern {
@@ -16,18 +16,16 @@ extern {
     fn newtDrawRootText(col: i32, row: i32, text: *const i8);
     fn newtFinished();
     fn newtCenteredWindow(width: i32, height: i32, text: *const i8) -> i32;
-    fn newtForm(vertBar: NewtComponentPtr, help: *const i8, flags: i32) -> NewtComponentPtr;
-    fn newtFormAddComponent(form: NewtComponentPtr, co: NewtComponentPtr);
-    fn newtFormDestroy(form: NewtComponentPtr);
-    fn newtRunForm(form: NewtComponentPtr) -> NewtComponentPtr;
-    fn newtButton(left: i32, top: i32, text: *const i8) -> NewtComponentPtr;
-    fn newtLabel(left: i32, top: i32, text: *const i8) -> NewtComponentPtr;
-    fn newtEntry(left: i32, top: i32, initialValue: *const i8, width: i32, resultPtr: *mut *mut i8, flags: i32) -> NewtComponentPtr;
-    fn newtEntryGetValue(co: NewtComponentPtr) -> *const i8;
+    fn newtForm(vertBar: ComponentPtr, help: *const i8, flags: i32) -> ComponentPtr;
+    fn newtFormAddComponent(form: ComponentPtr, co: ComponentPtr);
+    fn newtFormDestroy(form: ComponentPtr);
+    fn newtRunForm(form: ComponentPtr) -> ComponentPtr;
+    fn newtButton(left: i32, top: i32, text: *const i8) -> ComponentPtr;
+    fn newtLabel(left: i32, top: i32, text: *const i8) -> ComponentPtr;
+    fn newtEntry(left: i32, top: i32, initialValue: *const i8, width: i32, resultPtr: *mut *mut i8, flags: i32) -> ComponentPtr;
+    fn newtEntryGetValue(co: ComponentPtr) -> *const i8;
 }
 
-// Wonder if this could be made nicer by returning a var that Rust could clean up for us
-// by implementing the Drop trait
 pub fn init() {
     unsafe { newtInit(); }
 }
@@ -57,106 +55,64 @@ pub fn centered_window(width: i32, height: i32, text: &str) {
     }
 }
 
-pub fn label(width: i32, height: i32, text: &str) {
+// TODO: flag enum
+pub fn form(vertical_bar: Option<ComponentPtr>, help: Option<&str>, flags: i32) -> ComponentPtr {
+    let vert_bar_ptr = match vertical_bar {
+        Some(x) => x,
+        None => 0
+    };
+    let help_ptr = match help {
+        Some(x) => CString::new(x).unwrap().as_ptr(),
+        None => ptr::null()
+    };
     unsafe {
-        newtLabel(width, height, CString::new(text).unwrap().as_ptr());
+        newtForm(vert_bar_ptr, help_ptr, flags)
     }
 }
 
-pub struct Form {
-    pub ptr: NewtComponentPtr
-}
-impl Form {
-    // TODO: support flags
-    pub fn new(vertical_bar: Option<Scrollbar>, help: Option<&str>, flags: i32) -> Form {
-        let vert_bar_ptr = match vertical_bar {
-            Some(s) => s.ptr,
-            None => 0
-        };
-        let help_ptr = match help {
-            Some(s) => CString::new(s).unwrap().as_ptr(),
-            None => ptr::null()
-        };
-        Form { ptr: unsafe { newtForm(vert_bar_ptr, help_ptr, flags) } }
-    }
-
-    pub fn run(&self) -> NewtComponentPtr { // TODO: with the object model returning a ptr isn't useful
-        unsafe {
-            newtRunForm(self.ptr)
-        }
-    }
-
-    pub fn add_component(&self, component: &Component) {
-        unsafe {
-            newtFormAddComponent(self.ptr, component.get_ptr())
-        }
-    }
-}
-impl Component for Form {
-    fn get_ptr(&self) -> NewtComponentPtr { self.ptr }
-}
-impl Drop for Form {
-    fn drop(&mut self) {
-        unsafe {
-            newtFormDestroy(self.ptr);
-        }
+pub fn run_form(form: ComponentPtr) -> ComponentPtr {
+    unsafe {
+        newtRunForm(form)
     }
 }
 
-pub struct Button {
-    pub ptr: NewtComponentPtr
-}
-impl Button {
-    pub fn new(left: i32, top: i32, text: &str) -> Button {
-        Button { ptr: unsafe { newtButton(left, top, CString::new(text).unwrap().as_ptr()) } }
+pub fn form_add_component(form: ComponentPtr, component: ComponentPtr) {
+    unsafe {
+        newtFormAddComponent(form, component)
     }
 }
-impl Component for Button {
-    fn get_ptr(&self) -> NewtComponentPtr { self.ptr }
-}
 
-pub struct Label {
-    pub ptr: NewtComponentPtr
-}
-impl Label {
-    pub fn new(left: i32, top: i32, text: &str) -> Label {
-        Label { ptr: unsafe { newtLabel(left, top, CString::new(text).unwrap().as_ptr()) } }
+pub fn form_destroy(form: ComponentPtr) {
+    unsafe {
+        newtFormDestroy(form)
     }
 }
-impl Component for Label {
-    fn get_ptr(&self) -> NewtComponentPtr { self.ptr }
-}
 
-pub struct Entry {
-    pub ptr: NewtComponentPtr
-}
-impl Entry {
-    pub fn new(left: i32, top: i32, initial_value: Option<&str>, width: i32, flags: i32) -> Entry {
-        let initial_value_ptr = match initial_value {
-            Some(v) => CString::new(v).unwrap().as_ptr(),
-            None => ptr::null()
-        };
-        Entry { ptr: unsafe { newtEntry(left, top, initial_value_ptr, width, 0 as *mut *mut i8, flags) } }
+pub fn button(left: i32, top: i32, text: &str) -> ComponentPtr {
+    unsafe {
+        newtButton(left, top, CString::new(text).unwrap().as_ptr())
     }
+}
 
-    // TODO: set
-
-    pub fn get_value(&self) -> String {
-        let ptr = unsafe { newtEntryGetValue(self.ptr) };
-        let cstr = unsafe { CStr::from_ptr(ptr) };
-        let buf = cstr.to_bytes();
-        String::from_utf8(buf.to_vec()).unwrap()
+pub fn label(left: i32, top: i32, text: &str) -> ComponentPtr {
+    unsafe {
+        newtLabel(left, top, CString::new(text).unwrap().as_ptr())
     }
-
-    // TODO: set filter
-}
-impl Component for Entry {
-    fn get_ptr(&self) -> NewtComponentPtr { self.ptr }
 }
 
-pub struct Scrollbar {
-    pub ptr: NewtComponentPtr
+pub fn entry(left: i32, top: i32, initial_value: Option<&str>, width: i32, flags: i32) -> ComponentPtr {
+    let initial_value_ptr = match initial_value {
+        Some(x) => CString::new(x).unwrap().as_ptr(),
+        None => ptr::null()
+    };
+    unsafe {
+        newtEntry(left, top, initial_value_ptr, width, 0 as *mut *mut i8, flags)
+    }
 }
-impl Component for Scrollbar {
-    fn get_ptr(&self) -> NewtComponentPtr { self.ptr }
+
+pub fn entry_get_value(component: ComponentPtr) -> String {
+    let ptr = unsafe { newtEntryGetValue(component) };
+    let cstr = unsafe { CStr::from_ptr(ptr) };
+    let buf = cstr.to_bytes();
+    String::from_utf8(buf.to_vec()).unwrap()
 }
