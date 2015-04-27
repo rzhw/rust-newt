@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::ffi::CStr;
 use std::ptr;
 
 pub type NewtComponentPtr = u32;
@@ -21,6 +22,8 @@ extern {
     fn newtRunForm(form: NewtComponentPtr) -> NewtComponentPtr;
     fn newtButton(left: i32, top: i32, text: *const i8) -> NewtComponentPtr;
     fn newtLabel(left: i32, top: i32, text: *const i8) -> NewtComponentPtr;
+    fn newtEntry(left: i32, top: i32, initialValue: *const i8, width: i32, resultPtr: *mut *mut i8, flags: i32) -> NewtComponentPtr;
+    fn newtEntryGetValue(co: NewtComponentPtr) -> *const i8;
 }
 
 // Wonder if this could be made nicer by returning a var that Rust could clean up for us
@@ -121,6 +124,33 @@ impl Label {
     }
 }
 impl Component for Label {
+    fn get_ptr(&self) -> NewtComponentPtr { self.ptr }
+}
+
+pub struct Entry {
+    pub ptr: NewtComponentPtr
+}
+impl Entry {
+    pub fn new(left: i32, top: i32, initial_value: Option<&str>, width: i32, flags: i32) -> Entry {
+        let initial_value_ptr = match initial_value {
+            Some(v) => CString::new(v).unwrap().as_ptr(),
+            None => ptr::null()
+        };
+        Entry { ptr: unsafe { newtEntry(left, top, initial_value_ptr, width, 0 as *mut *mut i8, flags) } }
+    }
+
+    // TODO: set
+
+    pub fn get_value(&self) -> String {
+        let ptr = unsafe { newtEntryGetValue(self.ptr) };
+        let cstr = unsafe { CStr::from_ptr(ptr) };
+        let buf = cstr.to_bytes();
+        String::from_utf8(buf.to_vec()).unwrap()
+    }
+
+    // TODO: set filter
+}
+impl Component for Entry {
     fn get_ptr(&self) -> NewtComponentPtr { self.ptr }
 }
 
