@@ -8,6 +8,20 @@ pub type ComponentPtr = u32;
 // (An alternative wrapper which attempts to make this functional is possible but detracts
 // from the simplicity of newt.)
 
+pub const NEWT_FLAG_RETURNEXIT: i32 = 	(1 << 0);
+pub const NEWT_FLAG_HIDDEN: i32 = 	(1 << 1);
+pub const NEWT_FLAG_SCROLL: i32 = 	(1 << 2);
+pub const NEWT_FLAG_DISABLED: i32 = 	(1 << 3);
+/* OBSOLETE pub const NEWT_FLAG_NOSCROLL: i32 = 	(1 << 4);	for listboxes */
+pub const NEWT_FLAG_BORDER: i32 =	(1 << 5);
+pub const NEWT_FLAG_WRAP: i32 =		(1 << 6);
+pub const NEWT_FLAG_NOF12: i32 =		(1 << 7);
+pub const NEWT_FLAG_MULTIPLE: i32 =      (1 << 8);
+pub const NEWT_FLAG_SELECTED: i32 =	(1 << 9);
+pub const NEWT_FLAG_CHECKBOX: i32 =	(1 << 10);
+pub const NEWT_FLAG_PASSWORD: i32 =      (1 << 11);  /* draw '*'  of chars in entrybox */
+pub const NEWT_FLAG_SHOWCURSOR: i32 =    (1 << 12); /* Only applies to listbox for now */
+
 #[link(name = "newt")]
 extern {
     fn newtInit();
@@ -22,6 +36,9 @@ extern {
     fn newtRunForm(form: ComponentPtr) -> ComponentPtr;
     fn newtButton(left: i32, top: i32, text: *const i8) -> ComponentPtr;
     fn newtLabel(left: i32, top: i32, text: *const i8) -> ComponentPtr;
+    fn newtListbox(left: i32, top: i32, height: i32, flags: i32) -> ComponentPtr;
+    fn newtListboxAppendEntry(component: ComponentPtr, text: *const i8, data: *const u8) -> i32;
+    fn newtListboxGetCurrent(component: ComponentPtr) -> *const u8;
     fn newtEntry(left: i32, top: i32, initialValue: *const i8, width: i32, resultPtr: *mut *mut i8, flags: i32) -> ComponentPtr;
     fn newtEntryGetValue(co: ComponentPtr) -> *const i8;
 }
@@ -98,6 +115,24 @@ pub fn label(left: i32, top: i32, text: &str) -> ComponentPtr {
     unsafe {
         newtLabel(left, top, CString::new(text).unwrap().as_ptr())
     }
+}
+
+pub fn listbox(left: i32, top: i32, height: i32, flags: i32) -> ComponentPtr {
+    unsafe {
+        newtListbox(left, top, height, flags)
+    }
+}
+
+pub fn listbox_append_entry(component: ComponentPtr, text: &str, data: i32) -> i32 {
+    unsafe {
+        newtListboxAppendEntry(component, CString::new(text).unwrap().as_ptr(), data as *const u8)
+    }
+}
+
+pub fn listbox_get_current(component: ComponentPtr) -> i32 {
+    (unsafe {
+        newtListboxGetCurrent(component)
+    }) as i32
 }
 
 pub fn entry(left: i32, top: i32, initial_value: Option<&str>, width: i32, flags: i32) -> ComponentPtr {
