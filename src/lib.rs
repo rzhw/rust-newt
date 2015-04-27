@@ -6,7 +6,9 @@ pub type ComponentPtr = u32;
 
 // Design goal: Be a light wrapper. Side effects (inherent to UI programming) are okay.
 // (An alternative wrapper which attempts to make this functional is possible but detracts
-// from the simplicity of newt.)
+// from the simplicity of newt. It would be nice to have though: For example, taking advantage
+// of Rust to have it destroy a form for us. There are consequences though e.g. we'd want any
+// component added to a form be owned by that form from then on -- food for thought for API design)
 
 pub const NEWT_FLAG_RETURNEXIT: i32 = 	(1 << 0);
 pub const NEWT_FLAG_HIDDEN: i32 = 	(1 << 1);
